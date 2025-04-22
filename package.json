@@ -1,0 +1,22 @@
+{
+    "name": "aiwaf-js",
+    "version": "0.0.1",
+    "description": "Adaptive Web Application Firewall middleware for Node.js (Express, Fastify, Hapi, Next.js)",
+    "main": "index.js",
+    "scripts": {
+    "retrain": "AIWAF_LOG_PATH=/var/log/nginx/access.log npm run train",
+    "train": "node train.js"
+    },
+    "dependencies": {
+      "express": "^4.18.2",
+      "node-cache": "^5.1.2",
+      "redis": "^4.6.5",
+      "uuid": "^9.0.0",
+      "knex": "^2.4.2",
+    "sqlite3": "^5.1.6"
+    },
+    "keywords": ["waf","firewall","security","express","nodejs","middleware","ml"],
+    "author": "Aayush Gauba",
+    "license": "MIT"
+  }
+  
