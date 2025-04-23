@@ -3,11 +3,12 @@ const express = require('express');
 const path = require('path');
 
 process.env.NODE_ENV = 'test';
-jest.setTimeout(15000); // Set global test timeout to 15s
+jest.setTimeout(15000);
 
-const db = require('../utils/db'); // Adjust path if needed
+const db = require('../utils/db');
 const aiwaf = require('../index');
 const dynamicKeyword = require('../lib/dynamicKeyword');
+const anomalyDetector = require('../lib/anomalyDetector');
 
 beforeAll(async () => {
   const hasTable = await db.schema.hasTable('blocked_ips');
@@ -99,6 +100,15 @@ describe('AIWAF-JS Middleware', () => {
       .get(segment)
       .set('X-Forwarded-For', ip)
       .expect(403, { error: 'blocked' });
+  });
+
+  it('flags and blocks anomalous paths', async () => {
+    // Fake a long weird path to trigger the anomaly detector
+    const longPath = '/' + 'a'.repeat(200);
+    await request(app)
+      .get(longPath)
+      .set('X-Forwarded-For', ip)
+      .expect(403, { error: 'blocked' }); // should be flagged as anomalous
   });
 });
 

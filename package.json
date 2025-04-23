@@ -1,6 +1,6 @@
 {
     "name": "aiwaf-js",
-    "version": "0.0.1",
+    "version": "0.0.2",
     "description": "Adaptive Web Application Firewall middleware for Node.js (Express, Fastify, Hapi, Next.js)",
     "main": "index.js",
     "scripts": {
