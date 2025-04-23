@@ -101,3 +101,5 @@ describe('AIWAF-JS Middleware', () => {
       .expect(403, { error: 'blocked' });
   });
 });
+
+afterAll(() => db.destroy());
