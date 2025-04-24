@@ -18,7 +18,6 @@
 - Offline Retraining
 - Redis Support (optional but recommended)
 - Multiprocess Safe
-- Planned v2: Threat Intelligence Feeds
 
 ## Installation
 
