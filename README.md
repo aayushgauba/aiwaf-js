@@ -1,29 +1,46 @@
 # aiwaf‑js
 
 > **Adaptive Web Application Firewall** middleware for Node.js & Express  
-> Self‑learning, plug‑and‑play WAF with rate‑limiting, static & dynamic keyword blocking, honeypot traps, UUID‑tamper protection and IsolationForest anomaly detection—fully configurable and trainable on your own access logs. Now Redis‑powered and ready for distributed, multiprocess use.
+> Self‑learning, plug‑and‑play WAF with rate‑limiting, static & dynamic keyword blocking, honeypot traps, UUID‑tamper protection, and IsolationForest anomaly detection—fully configurable and trainable on your own access logs. Now Redis‑powered and ready for distributed, multiprocess use.
 
 [![npm version](https://img.shields.io/npm/v/aiwaf-js.svg)](https://www.npmjs.com/package/aiwaf-js)  
-[![Build Status](https://img.shields.io/github/actions/workflow/status/your‑user/aiwaf-js/ci.yml)](https://github.com/your‑user/aiwaf-js/actions)  
+[![Build Status](https://img.shields.io/github/actions/workflow/status/your-user/aiwaf-js/ci.yml)](https://github.com/your-user/aiwaf-js/actions)  
 [![License](https://img.shields.io/npm/l/aiwaf-js.svg)](LICENSE)
+
+---
 
 ## Features
 
-- Rate Limiting (Redis-based or fallback)
-- Static Keyword Blocking
-- Dynamic Keyword Learning (self-adaptive)
-- Honeypot Field Detection
-- UUID‑Tamper Protection
-- Anomaly Detection (Isolation Forest)
-- Offline Retraining
-- Redis Support (optional but recommended)
-- Multiprocess Safe
+- ✅ Rate Limiting (Redis-based or fallback to memory)
+- ✅ Static Keyword Blocking
+- ✅ Dynamic Keyword Learning (auto-adaptive)
+- ✅ Honeypot Field Detection
+- ✅ UUID‑Tamper Protection
+- ✅ Anomaly Detection (Isolation Forest)
+- ✅ Redis Support for multiprocess environments
+- ✅ Offline Training from access logs
+
+---
 
 ## Installation
 
 ```bash
 npm install aiwaf-js --save
 ```
+
+---
+
+## Train the Model (Optional but recommended)
+
+You can train the anomaly detector and keyword learner using real access logs.
+
+```bash
+NODE_LOG_PATH=/path/to/access.log npm run train
+```
+
+If `NODE_LOG_PATH` is not provided, it defaults to `/var/log/nginx/access.log`.
+
+---
 
 ## Quick Start
 
@@ -38,9 +55,11 @@ app.get('/', (req, res) => res.send('Protected'))
 app.listen(3000)
 ```
 
-## Redis Support
+---
 
-AIWAF‑JS supports Redis to share rate limit counters across processes and servers. You can configure Redis by setting the `REDIS_URL` environment variable:
+## Redis Support (Recommended for Production)
+
+AIWAF‑JS supports Redis for distributed rate limiting and keyword caching.
 
 ```bash
 # On Unix/Linux/macOS
@@ -50,23 +69,13 @@ export REDIS_URL=redis://localhost:6379
 $env:REDIS_URL = "redis://localhost:6379"
 ```
 
-If Redis is not available, it will gracefully fall back to in-memory tracking (suitable for dev and single‑instance deployments).
+If Redis is unavailable, it gracefully falls back to in-memory mode.
 
-## Training
+---
 
-```bash
-NODE_LOG_PATH=/path/to/access.log npm run train
-```
-
-## Usage Example
+## Configuration
 
 ```js
-const express = require('express');
-const aiwaf = require('aiwaf-js');
-
-const app = express();
-app.use(express.json());
-
 app.use(aiwaf({
   staticKeywords: ['.php', '.env', '.git'],
   dynamicTopN: 10,
@@ -75,26 +84,28 @@ app.use(aiwaf({
   FLOOD_REQ: 10,
   HONEYPOT_FIELD: 'hp_field',
 }));
-
-app.get('/', (req, res) => res.send('Protected by AIWAF-JS'));
-app.listen(3000, () => console.log('Server running on http://localhost:3000'));
 ```
 
+| Option             | Env Var             | Default                     | Description                                              |
+|--------------------|---------------------|-----------------------------|----------------------------------------------------------|
+| `staticKeywords`   | —                   | [".php",".xmlrpc","wp-"]    | Substrings to block immediately.                        |
+| `dynamicTopN`      | `DYNAMIC_TOP_N`     | 10                          | Number of dynamic keywords to match.                    |
+| `windowSec`        | `WINDOW_SEC`        | 10                          | Time window in seconds for rate limiting.               |
+| `maxReq`           | `MAX_REQ`           | 20                          | Max allowed requests per window.                        |
+| `floodReq`         | `FLOOD_REQ`         | 10                          | Hard limit triggering IP block.                         |
+| `honeypotField`    | `HONEYPOT_FIELD`    | "hp_field"                  | Hidden bot trap field.                                  |
+| `anomalyThreshold` | `ANOMALY_THRESHOLD` | 0.5                         | Threshold for IsolationForest-based anomaly detection.  |
+| `logPath`          | `NODE_LOG_PATH`     | "/var/log/nginx/access.log" | Path to access log file.                                |
+| `logGlob`          | `NODE_LOG_GLOB`     | "${logPath}.*"              | Glob pattern to include rotated/gzipped logs.           |
 
-## Configuration Options
+---
 
-| Option             | Env Var             | Default                               | Description                                                             |
-|--------------------|---------------------|---------------------------------------|-------------------------------------------------------------------------|
-| `staticKeywords`   | —                   | [".php",".xmlrpc","wp-"]              | Substrings to block immediately.                                       |
-| `dynamicTopN`      | `DYNAMIC_TOP_N`     | 10                                    | Number of top “learned” keywords to match per request.                 |
-| `windowSec`        | `WINDOW_SEC`        | 10                                    | Time window (in seconds) for rate limiting.                            |
-| `maxReq`           | `MAX_REQ`           | 20                                    | Max requests allowed in `windowSec`.                                   |
-| `floodReq`         | `FLOOD_REQ`         | 10                                    | If requests exceed this, IP is blocked outright.                       |
-| `honeypotField`    | `HONEYPOT_FIELD`    | "hp_field"                            | Hidden field for bot detection.                                        |
-| `anomalyThreshold` | `ANOMALY_THRESHOLD` | 0.5                                   | IsolationForest threshold for anomaly.                                 |
-| `logPath`          | `NODE_LOG_PATH`     | "/var/log/nginx/access.log"           | Path to main access log.                                               |
-| `logGlob`          | `NODE_LOG_GLOB`     | "${logPath}.*"                        | Includes rotated/gzipped logs.                                         |
+## Optimization Note
 
-## License
+**Tip:** In high-volume environments, caching the feature vector extractor (especially if Redis is unavailable) can reduce redundant computation and significantly boost performance.
 
-MIT License © 2025 Aayush Gauba
+---
+
+## 📄 License
+
+MIT License © 2025 [Aayush Gauba](https://github.com/aayushg)
