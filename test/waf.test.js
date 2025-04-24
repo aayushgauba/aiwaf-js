@@ -64,7 +64,17 @@ describe('AIWAF-JS Middleware', () => {
       .set('x-response-time', '15')
       .expect(403, { error: 'blocked' })
   );
-
+  it('continues working if Redis goes down', async () => {
+    const redis = redisManager.getClient();
+    if (redis) await redis.quit(); // force disconnect
+  
+    const segment = `/simulate-${Date.now().toString(36)}`;
+    for (let i = 0; i < 3; i++) {
+      await request(app).get(segment).set('X-Forwarded-For', ip); // fallback path
+    }
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403);
+  });
+  
   it('allows safe paths', () =>
     request(app)
       .get('/')
