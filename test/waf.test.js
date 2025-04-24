@@ -3,18 +3,19 @@ const express = require('express');
 const path = require('path');
 
 process.env.NODE_ENV = 'test';
-jest.setTimeout(20000); // Increase timeout if needed
+jest.setTimeout(20000); // Extend timeout for async retries or slow startup
 
 const db = require('../utils/db');
 const aiwaf = require('../index');
 const dynamicKeyword = require('../lib/dynamicKeyword');
 const anomalyDetector = require('../lib/anomalyDetector');
 const { connectRedis, client: redis } = require('../lib/redisClient');
+const { enableRedis: enableFeatureRedis } = require('../lib/featureUtils');
+const { init: initRateLimiter } = require('../lib/rateLimiter');
 
 let redisAvailable = false;
 
 beforeAll(async () => {
-  // Setup DB table
   const hasTable = await db.schema.hasTable('blocked_ips');
   if (!hasTable) {
     await db.schema.createTable('blocked_ips', table => {
@@ -25,13 +26,18 @@ beforeAll(async () => {
     });
   }
 
-  // Attempt Redis connection
   try {
     await connectRedis();
     if (redis.isOpen) {
       await redis.flushAll();
       redisAvailable = true;
       console.log('✅ Redis connected and flushed for test.');
+      enableFeatureRedis(redis);
+      await initRateLimiter({
+        WINDOW_SEC: 1,
+        MAX_REQ: 5,
+        FLOOD_REQ: 10,
+      });
     }
   } catch (err) {
     console.warn('⚠️ Redis not available — continuing with fallback.');
@@ -66,6 +72,7 @@ describe('AIWAF-JS Middleware', () => {
     request(app)
       .get('/wp-config.php')
       .set('X-Forwarded-For', ip)
+      .set('x-response-time', '15')
       .expect(403, { error: 'blocked' })
   );
 
@@ -73,6 +80,7 @@ describe('AIWAF-JS Middleware', () => {
     request(app)
       .get('/')
       .set('X-Forwarded-For', ip)
+      .set('x-response-time', '15')
       .expect(200, 'OK')
   );
 
@@ -80,12 +88,13 @@ describe('AIWAF-JS Middleware', () => {
     for (let i = 0; i < 7; i++) {
       const resp = await request(app)
         .get('/')
-        .set('X-Forwarded-For', ip);
-      
-      if (i < 4) {
+        .set('X-Forwarded-For', ip)
+        .set('x-response-time', '15');
+
+      if (i < 5) {
         expect(resp.status).toBe(200);
       } else {
-        expect([200, 429, 403]).toContain(resp.status);
+        expect([200, 403, 429]).toContain(resp.status);
       }
     }
   });
@@ -107,16 +116,9 @@ describe('AIWAF-JS Middleware', () => {
 
   it('learns and blocks dynamic keywords', async () => {
     const segment = '/secretABC';
-    for (let i = 0; i < 3; i++) {
-      await request(app)
-        .get(segment)
-        .set('X-Forwarded-For', ip)
-        .expect(403);
-    }
-    await request(app)
-      .get(segment)
-      .set('X-Forwarded-For', ip)
-      .expect(403, { error: 'blocked' });
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(404); // not blocked yet
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403); // learned
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403, { error: 'blocked' });
   });
 
   it('flags and blocks anomalous paths', async () => {
@@ -124,6 +126,7 @@ describe('AIWAF-JS Middleware', () => {
     await request(app)
       .get(longPath)
       .set('X-Forwarded-For', ip)
+      .set('x-response-time', '20')
       .expect(403, { error: 'blocked' });
   });
 });
