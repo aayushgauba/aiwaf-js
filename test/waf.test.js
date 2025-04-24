@@ -1,16 +1,13 @@
 const request = require('supertest');
 const express = require('express');
-const path = require('path');
 
 process.env.NODE_ENV = 'test';
-jest.setTimeout(20000); // Extend timeout for async retries or slow startup
+jest.setTimeout(20000);
 
 const db = require('../utils/db');
 const aiwaf = require('../index');
 const dynamicKeyword = require('../lib/dynamicKeyword');
-const anomalyDetector = require('../lib/anomalyDetector');
-const { connectRedis, client: redis } = require('../lib/redisClient');
-const { enableRedis: enableFeatureRedis } = require('../lib/featureUtils');
+const redisManager = require('../lib/redisClient');
 const { init: initRateLimiter } = require('../lib/rateLimiter');
 
 let redisAvailable = false;
@@ -26,22 +23,14 @@ beforeAll(async () => {
     });
   }
 
-  try {
-    await connectRedis();
-    if (redis.isOpen) {
-      await redis.flushAll();
-      redisAvailable = true;
-      console.log('✅ Redis connected and flushed for test.');
-      enableFeatureRedis(redis);
-      await initRateLimiter({
-        WINDOW_SEC: 1,
-        MAX_REQ: 5,
-        FLOOD_REQ: 10,
-      });
-    }
-  } catch (err) {
-    console.warn('⚠️ Redis not available — continuing with fallback.');
-  }
+  await redisManager.connect();
+  redisAvailable = redisManager.isReady();
+
+  await initRateLimiter({
+    WINDOW_SEC: 1,
+    MAX_REQ: 5,
+    FLOOD_REQ: 10
+  });
 });
 
 describe('AIWAF-JS Middleware', () => {
@@ -115,9 +104,11 @@ describe('AIWAF-JS Middleware', () => {
   );
 
   it('learns and blocks dynamic keywords', async () => {
-    const segment = '/secretABC';
-    await request(app).get(segment).set('X-Forwarded-For', ip).expect(404); // not blocked yet
-    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403); // learned
+    const segment = `/secret-${Date.now().toString(36)}`;
+    for (let i = 0; i < 3; i++) {
+      await request(app).get(segment).set('X-Forwarded-For', ip); // allow learning phase
+    }
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403); // block expected
     await request(app).get(segment).set('X-Forwarded-For', ip).expect(403, { error: 'blocked' });
   });
 
@@ -132,8 +123,8 @@ describe('AIWAF-JS Middleware', () => {
 });
 
 afterAll(async () => {
-  if (redisAvailable && redis.isOpen) {
-    await redis.quit();
+  if (redisAvailable && redisManager.getClient()) {
+    await redisManager.getClient().quit();
   }
   await db.destroy();
 });
