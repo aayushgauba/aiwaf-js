@@ -19,6 +19,7 @@
 - ✅ Anomaly Detection (Isolation Forest)
 - ✅ Redis Support for multiprocess environments
 - ✅ Offline Training from access logs
+- ✅ **Custom Cache Logic Support**
 
 ---
 
@@ -73,6 +74,31 @@ If Redis is unavailable, it gracefully falls back to in-memory mode.
 
 ---
 
+## Custom Cache Logic (Advanced)
+
+You can inject your own cache logic (in-memory, Redis, hybrid, or file-based) by passing a `cache` object implementing the following interface:
+
+```js
+const myCustomCache = {
+  get: async (key) => { /* return cached value */ },
+  set: async (key, value, options) => { /* store with optional TTL */ },
+  del: async (key) => { /* delete entry */ }
+}
+
+app.use(aiwaf({
+  cache: myCustomCache,
+  staticKeywords: ['.php'],
+  dynamicTopN: 5,
+  MAX_REQ: 10,
+  WINDOW_SEC: 15,
+  FLOOD_REQ: 20,
+}))
+```
+
+This overrides Redis/in-memory usage with your custom strategy for all cache operations.
+
+---
+
 ## Configuration
 
 ```js
@@ -83,6 +109,7 @@ app.use(aiwaf({
   MAX_REQ: 20,
   FLOOD_REQ: 10,
   HONEYPOT_FIELD: 'hp_field',
+  cache: myCustomCache, // optional custom cache injection
 }));
 ```
 
@@ -97,6 +124,7 @@ app.use(aiwaf({
 | `anomalyThreshold` | `ANOMALY_THRESHOLD` | 0.5                         | Threshold for IsolationForest-based anomaly detection.  |
 | `logPath`          | `NODE_LOG_PATH`     | "/var/log/nginx/access.log" | Path to access log file.                                |
 | `logGlob`          | `NODE_LOG_GLOB`     | "${logPath}.*"              | Glob pattern to include rotated/gzipped logs.           |
+| `cache`            | —                   | undefined                   | Custom cache implementation (overrides Redis/memory)    |
 
 ---
 

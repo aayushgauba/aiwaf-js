@@ -1,16 +1,27 @@
 const request = require('supertest');
 const express = require('express');
-
-process.env.NODE_ENV = 'test';
-jest.setTimeout(20000);
-
 const db = require('../utils/db');
 const aiwaf = require('../index');
 const dynamicKeyword = require('../lib/dynamicKeyword');
 const redisManager = require('../lib/redisClient');
 const { init: initRateLimiter } = require('../lib/rateLimiter');
 
+process.env.NODE_ENV = 'test';
+jest.setTimeout(20000);
+
 let redisAvailable = false;
+
+const testCache = (() => {
+  const store = new Map();
+  return {
+    async get(key) {
+      return store.has(key) ? store.get(key) : null;
+    },
+    async set(key, val) {
+      store.set(key, val);
+    }
+  };
+})();
 
 beforeAll(async () => {
   const hasTable = await db.schema.hasTable('blocked_ips');
@@ -29,7 +40,8 @@ beforeAll(async () => {
   await initRateLimiter({
     WINDOW_SEC: 1,
     MAX_REQ: 5,
-    FLOOD_REQ: 10
+    FLOOD_REQ: 10,
+    cache: testCache // inject test cache
   });
 });
 
@@ -48,7 +60,9 @@ describe('AIWAF-JS Middleware', () => {
       WINDOW_SEC: 1,
       MAX_REQ: 5,
       FLOOD_REQ: 10,
-      HONEYPOT_FIELD: 'hp_field'
+      HONEYPOT_FIELD: 'hp_field',
+      cache: testCache,
+      logger: console
     }));
 
     app.get('/', (req, res) => res.send('OK'));
@@ -64,17 +78,18 @@ describe('AIWAF-JS Middleware', () => {
       .set('x-response-time', '15')
       .expect(403, { error: 'blocked' })
   );
+
   it('continues working if Redis goes down', async () => {
     const redis = redisManager.getClient();
-    if (redis) await redis.quit(); // force disconnect
-  
+    if (redis) await redis.quit();
+
     const segment = `/simulate-${Date.now().toString(36)}`;
     for (let i = 0; i < 3; i++) {
-      await request(app).get(segment).set('X-Forwarded-For', ip); // fallback path
+      await request(app).get(segment).set('X-Forwarded-For', ip);
     }
     await request(app).get(segment).set('X-Forwarded-For', ip).expect(403);
   });
-  
+
   it('allows safe paths', () =>
     request(app)
       .get('/')
@@ -116,9 +131,9 @@ describe('AIWAF-JS Middleware', () => {
   it('learns and blocks dynamic keywords', async () => {
     const segment = `/secret-${Date.now().toString(36)}`;
     for (let i = 0; i < 3; i++) {
-      await request(app).get(segment).set('X-Forwarded-For', ip); // allow learning phase
+      await request(app).get(segment).set('X-Forwarded-For', ip);
     }
-    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403); // block expected
+    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403);
     await request(app).get(segment).set('X-Forwarded-For', ip).expect(403, { error: 'blocked' });
   });
 
