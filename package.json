@@ -3,10 +3,14 @@
     "version": "0.0.5",
     "description": "Adaptive Web Application Firewall middleware for Node.js (Express, Fastify, Hapi, Next.js)",
     "main": "index.js",
+    "bin": {
+        "aiwaf": "bin/aiwaf.js"
+    },
     "scripts": {
         "retrain": "AIWAF_LOG_PATH=/var/log/nginx/access.log npm run train",
         "train": "node train.js",
-        "test": "jest --runInBand"
+        "test": "jest --runInBand",
+        "aiwaf": "node bin/aiwaf.js"
     },
     "dependencies": {
         "express": "^4.18.2",
@@ -18,6 +22,9 @@
         "sqlite3": "^5.1.6",
         "supertest": "^7.1.0",
         "uuid": "^9.0.0"
+    },
+    "optionalDependencies": {
+        "maxmind": "^4.3.0"
     },
     "keywords": [
         "waf",

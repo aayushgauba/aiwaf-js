@@ -1,8 +1,10 @@
 const request = require('supertest');
 const express = require('express');
+const fs = require('fs');
 const db = require('../utils/db');
 const aiwaf = require('../index');
 const dynamicKeyword = require('../lib/dynamicKeyword');
+const dynamicKeywordStore = require('../lib/dynamicKeywordStore');
 const redisManager = require('../lib/redisClient');
 const { init: initRateLimiter } = require('../lib/rateLimiter');
 
@@ -10,6 +12,14 @@ process.env.NODE_ENV = 'test';
 jest.setTimeout(20000);
 
 let redisAvailable = false;
+let ipCounter = 1;
+
+function nextTestIp() {
+  const high = Math.floor(ipCounter / 254) % 254;
+  const low = (ipCounter % 254) + 1;
+  ipCounter += 1;
+  return `198.51.${high}.${low}`;
+}
 
 const testCache = (() => {
   const store = new Map();
@@ -46,28 +56,42 @@ beforeAll(async () => {
 });
 
 describe('AIWAF-JS Middleware', () => {
-  let app, ip;
+  let app, ip, middlewareLogPath, middlewareCsvPath;
 
   beforeEach(() => {
-    ip = `192.0.2.${Math.floor(Math.random() * 254) + 1}`;
+    ip = nextTestIp();
+    middlewareLogPath = `logs/test-aiwaf-${Date.now()}-${Math.random().toString(36).slice(2)}.jsonl`;
+    middlewareCsvPath = `logs/test-aiwaf-${Date.now()}-${Math.random().toString(36).slice(2)}.csv`;
+    dynamicKeywordStore.clear().catch(() => {});
     dynamicKeyword.init({ dynamicTopN: 3 });
 
     app = express();
     app.use(express.json());
     app.use(aiwaf({
       staticKeywords: ['.php', '.env', '.git'],
-      dynamicTopN: 3,
+      dynamicTopN: 1000,
       WINDOW_SEC: 1,
       MAX_REQ: 5,
       FLOOD_REQ: 10,
       HONEYPOT_FIELD: 'hp_field',
       cache: testCache,
-      logger: console
+      logger: console,
+      AIWAF_MIDDLEWARE_LOGGING: true,
+      AIWAF_MIDDLEWARE_LOG_PATH: middlewareLogPath,
+      AIWAF_MIDDLEWARE_LOG_CSV: true,
+      AIWAF_MIDDLEWARE_LOG_CSV_PATH: middlewareCsvPath
     }));
 
     app.get('/', (req, res) => res.send('OK'));
     app.post('/', (req, res) => res.send('POST OK'));
     app.get('/user/:uuid', (req, res) => res.send('USER OK'));
+    app.get('/health', (req, res) => res.send('healthy'));
+    app.get('/admin/wp-config.php', (req, res) => res.send('allow-by-exemption'));
+    app.get('/geo-test', (req, res) => res.send('geo-ok'));
+    app.get('/headers-test', (req, res) => res.send('headers-ok'));
+    app.get('/legacy-safe', (req, res) => res.send('legacy-ok'));
+    app.get('/form', (req, res) => res.send('FORM GET'));
+    app.post('/form', (req, res) => res.send('FORM POST'));
     app.use((req, res) => res.status(404).send('Not Found'));
   });
 
@@ -130,11 +154,23 @@ describe('AIWAF-JS Middleware', () => {
 
   it('learns and blocks dynamic keywords', async () => {
     const segment = `/secret-${Date.now().toString(36)}`;
+    const keywordApp = express();
+    keywordApp.use(express.json());
+    keywordApp.use(aiwaf({
+      staticKeywords: ['.php', '.env', '.git'],
+      dynamicTopN: 3,
+      WINDOW_SEC: 1,
+      MAX_REQ: 5,
+      FLOOD_REQ: 10,
+      HONEYPOT_FIELD: 'hp_field',
+      cache: testCache
+    }));
+
     for (let i = 0; i < 3; i++) {
-      await request(app).get(segment).set('X-Forwarded-For', ip);
+      await request(keywordApp).get(segment).set('X-Forwarded-For', ip);
     }
-    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403);
-    await request(app).get(segment).set('X-Forwarded-For', ip).expect(403, { error: 'blocked' });
+    await request(keywordApp).get(segment).set('X-Forwarded-For', ip).expect(403);
+    await request(keywordApp).get(segment).set('X-Forwarded-For', ip).expect(403, { error: 'blocked' });
   });
 
   it('flags and blocks anomalous paths', async () => {
@@ -144,6 +180,126 @@ describe('AIWAF-JS Middleware', () => {
       .set('X-Forwarded-For', ip)
       .set('x-response-time', '20')
       .expect(403, { error: 'blocked' });
+  });
+
+  it('supports exempt paths that bypass keyword blocking', async () => {
+    const exemptApp = express();
+    exemptApp.use(express.json());
+    exemptApp.use(aiwaf({
+      staticKeywords: ['.php'],
+      AIWAF_EXEMPT_PATHS: ['/admin'],
+      cache: testCache
+    }));
+    exemptApp.get('/admin/wp-config.php', (req, res) => res.send('ok'));
+
+    await request(exemptApp)
+      .get('/admin/wp-config.php')
+      .set('X-Forwarded-For', ip)
+      .expect(200, 'ok');
+  });
+
+  it('supports header validation when enabled', async () => {
+    const headerApp = express();
+    headerApp.use(express.json());
+    headerApp.use(aiwaf({
+      AIWAF_HEADER_VALIDATION: true,
+      AIWAF_REQUIRED_HEADERS: ['x-required-security-header'],
+      cache: testCache
+    }));
+    headerApp.get('/headers-test', (req, res) => res.send('ok'));
+
+    await request(headerApp)
+      .get('/headers-test')
+      .set('X-Forwarded-For', ip)
+      .expect(403, { error: 'blocked' });
+
+    await request(headerApp)
+      .get('/headers-test')
+      .set('X-Forwarded-For', `198.51.100.${Math.floor(Math.random() * 254) + 1}`)
+      .set('x-required-security-header', 'present')
+      .expect(200, 'ok');
+  });
+
+  it('supports geo blocking using country code header', async () => {
+    const geoApp = express();
+    geoApp.use(express.json());
+    geoApp.use(aiwaf({
+      AIWAF_GEO_BLOCK_ENABLED: true,
+      AIWAF_GEO_BLOCK_COUNTRIES: ['CN'],
+      cache: testCache
+    }));
+    geoApp.get('/geo-test', (req, res) => res.send('ok'));
+
+    await request(geoApp)
+      .get('/geo-test')
+      .set('X-Forwarded-For', ip)
+      .set('x-country-code', 'CN')
+      .expect(403, { error: 'blocked' });
+
+    await request(geoApp)
+      .get('/geo-test')
+      .set('X-Forwarded-For', `203.0.113.${Math.floor(Math.random() * 254) + 1}`)
+      .set('x-country-code', 'US')
+      .expect(200, 'ok');
+  });
+
+  it('supports honeypot timing checks (GET->POST too fast)', async () => {
+    const timingApp = express();
+    timingApp.use(express.json());
+    timingApp.use(aiwaf({
+      HONEYPOT_FIELD: 'hp_field',
+      AIWAF_MIN_FORM_TIME: 2,
+      cache: testCache
+    }));
+    timingApp.get('/form', (req, res) => res.send('FORM GET'));
+    timingApp.post('/form', (req, res) => res.send('FORM POST'));
+
+    await request(timingApp)
+      .get('/form')
+      .set('X-Forwarded-For', ip)
+      .expect(200);
+
+    await request(timingApp)
+      .post('/form')
+      .set('X-Forwarded-For', ip)
+      .send({})
+      .expect(403, { error: 'bot_detected' });
+  });
+
+  it('writes middleware request logs when enabled', async () => {
+    await request(app)
+      .get('/health')
+      .set('X-Forwarded-For', ip)
+      .expect(200);
+
+    await new Promise(resolve => setTimeout(resolve, 50));
+    const logContent = fs.readFileSync(middlewareLogPath, 'utf8');
+    expect(logContent).toContain('"path":"/health"');
+    expect(logContent).toContain('"status":200');
+
+    const csvContent = fs.readFileSync(middlewareCsvPath, 'utf8');
+    expect(csvContent).toContain('timestamp,ip,method,path,status,response_time,blocked,reason,country,user_agent');
+    expect(csvContent).toContain('/health');
+  });
+
+  it('supports legacy nested AIWAF_SETTINGS compatibility mapping', async () => {
+    const legacyApp = express();
+    legacyApp.use(express.json());
+    legacyApp.use(aiwaf({
+      AIWAF_SETTINGS: {
+        rate: { window: 1, max: 5, flood: 10 },
+        honeypot: { field: 'hp_field' },
+        exemptions: { paths: ['/legacy-safe'] },
+        keywords: { static: ['.php'], dynamicTopN: 3 }
+      },
+      cache: testCache
+    }));
+    legacyApp.get('/legacy-safe/wp-config.php', (req, res) => res.send('ok'));
+
+    await request(legacyApp)
+      .get('/legacy-safe/wp-config.php')
+      .set('X-Forwarded-For', ip)
+      .expect(200, 'ok');
   });
 });
 
