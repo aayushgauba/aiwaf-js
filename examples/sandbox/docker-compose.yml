@@ -1,0 +1,27 @@
+services:
+  aiwaf:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-proxy/Dockerfile
+    container_name: aiwaf_proxy
+    ports:
+      - "3000:3000"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3000
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  juice:
+    image: bkimminich/juice-shop
+    container_name: juice_shop
+    ports:
+      - "3001:3000"
+
+volumes:
+  aiwaf_logs:

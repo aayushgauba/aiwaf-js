@@ -1,16 +1,20 @@
 # aiwaf-js
 
-AIWAF-JS is a Node.js web application firewall middleware focused on Express applications. It combines deterministic request checks with anomaly detection so you can block abusive traffic, detect suspicious behavior, and retrain from access logs.
+AIWAF-JS is a Node.js/Express Web Application Firewall that combines deterministic protections with anomaly detection and continuous learning. It ships as middleware, a CLI for ops workflows, and an offline trainer for IsolationForest models.
 
 ## What It Does
 
 - Blocks known bad traffic with static keyword rules and IP blacklisting
 - Enforces rate limits with flood detection
-- Detects bot-like form abuse using honeypot field checks
-- Blocks suspicious UUID probing on sensitive route prefixes
-- Learns high-frequency path segments as dynamic suspicious keywords
-- Runs IsolationForest anomaly checks on feature vectors for unknown routes
-- Supports Redis and custom cache backends with memory fallback
+- Detects bot-like form abuse using honeypot field checks and timing gates
+- Enforces optional method policies (405) and suspicious method usage
+- Blocks suspicious UUID probing on route prefixes (with optional existence resolver)
+- Learns high-frequency malicious segments as dynamic suspicious keywords
+- Runs IsolationForest anomaly checks with recent-behavior analysis
+- Supports Redis/custom cache backends with memory fallback
+- Optional GeoIP blocking (MMDB) with allow/block lists and dynamic blocklist
+- CSV fallback storage when DB is unavailable
+- Operational CLI for blacklist, exemptions, geo, request logs, training and diagnostics
 
 ## Repository Layout
 
@@ -26,25 +30,31 @@ AIWAF-JS is a Node.js web application firewall middleware focused on Express app
 - `lib/featureUtils.js`: request feature extraction and short-lived caching
 - `lib/isolationForest.js`: IsolationForest implementation
 - `lib/redisClient.js`: optional Redis client lifecycle
+- `lib/headerValidation.js`: header caps, suspicious UA, and header quality scoring
+- `lib/geoBlocker.js`: GeoIP allow/block checks + MMDB lookup + cache
+- `lib/middlewareLogger.js`: JSONL/CSV/DB request logging
+- `lib/*Store.js`: DB/CSV storage adapters (blacklist, exemptions, geo, logs, keywords, models)
 - `train.js`: offline model training from access logs
 - `resources/model.json`: pretrained anomaly model artifact
 - `utils/db.js`: SQLite connection (memory DB in test)
-- `migrations/`: schema migration files for blocked IP and dynamic keyword storage
-- `test/waf.test.js`: middleware test coverage
+- `test/`: Jest test suite
 
 ## Request Processing Flow
 
 1. Initialize module options for rate limiter, keyword detectors, honeypot, UUID checks, and anomaly detector.
 2. Resolve client IP (`x-forwarded-for` first, then `req.ip`) and normalized path.
-3. Update dynamic keyword counters from current path.
+3. Enforce optional method policy (405) if enabled.
 4. Block immediately if IP is already in blacklist.
-5. Block and blacklist on honeypot trigger.
-6. Record request in rate limiter and enforce rate/flood policies.
-7. Block and blacklist on static keyword match.
-8. Block and blacklist on dynamic keyword match.
-9. Block and blacklist on suspicious UUID access.
-10. For unknown routes, extract request features and run anomaly detection; block and blacklist on anomaly.
-11. Allow request through `next()` when no rule triggers.
+5. Header validation (required headers, suspicious UA, header caps, quality score).
+6. Geo checks (allow/block lists + DB-backed blocklist).
+7. Honeypot field + timing checks.
+8. Rate-limit + flood handling.
+9. Static keyword blocking.
+10. Dynamic keyword blocking.
+11. UUID tamper checks (optional existence resolver).
+12. Anomaly detection for unknown routes with recent-behavior analysis.
+13. Request logging (JSONL/CSV/DB) and optional dynamic keyword learning on 404s.
+14. Allow request through `next()` when no rule triggers.
 
 ## Installation
 
@@ -68,7 +78,10 @@ app.use(aiwaf({
   MAX_REQ: 20,
   FLOOD_REQ: 40,
   HONEYPOT_FIELD: 'hp_field',
-  uuidRoutePrefix: '/user'
+  uuidRoutePrefix: '/user',
+  AIWAF_HEADER_VALIDATION: true,
+  AIWAF_METHOD_POLICY_ENABLED: true,
+  AIWAF_ALLOWED_METHODS: ['GET', 'POST', 'HEAD', 'OPTIONS']
 }));
 
 app.get('/', (req, res) => res.send('Protected'));
@@ -76,6 +89,8 @@ app.listen(3000);
 ```
 
 ## Configuration
+
+### Core Controls
 
 | Option | Default | Description |
 |---|---|---|
@@ -86,10 +101,85 @@ app.listen(3000);
 | `FLOOD_REQ` | `200` | Hard threshold that blacklists IP |
 | `HONEYPOT_FIELD` | `undefined` | Body field name used as bot trap |
 | `uuidRoutePrefix` | `"/user"` | Path prefix monitored for UUID tamper attempts |
+| `uuidResolver` | `undefined` | Optional async resolver `(uuid, req) => boolean` for existence checks |
 | `cache` | fallback memory cache | Custom cache backend used by limiter/features |
 | `nTrees` | `100` | IsolationForest trees when model is initialized in-process |
 | `sampleSize` | `256` | IsolationForest sample size |
 
+### Header Validation
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_HEADER_VALIDATION` | `false` | Enable header validation pipeline |
+| `AIWAF_REQUIRED_HEADERS` | `[]` | Required headers array, or `{ DEFAULT, GET, POST }` mapping |
+| `AIWAF_HEADER_QUALITY_MIN_SCORE` | `3` | Minimum header quality score |
+| `AIWAF_MAX_HEADER_BYTES` | `32768` | Max header bytes before blocking |
+| `AIWAF_MAX_HEADER_COUNT` | `100` | Max header count before blocking |
+| `AIWAF_MAX_USER_AGENT_LENGTH` | `500` | Max User-Agent length |
+| `AIWAF_MAX_ACCEPT_LENGTH` | `4096` | Max Accept header length |
+| `AIWAF_BLOCKED_USER_AGENTS` | list | Substring deny list |
+| `AIWAF_SUSPICIOUS_USER_AGENTS` | regex list | Regex list for suspicious UA detection |
+| `AIWAF_LEGITIMATE_BOTS` | regex list | Regex allow list for legitimate crawlers |
+
+### Method Policy
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_METHOD_POLICY_ENABLED` | `false` | Enforce method allowlist (returns 405) |
+| `AIWAF_ALLOWED_METHODS` | `['GET','POST','HEAD','OPTIONS']` | Allowed methods when policy enabled |
+| `AIWAF_POST_ONLY_SUFFIXES` | `['/create/','/submit/','/upload/','/delete/','/process/']` | GET to these triggers 405 when policy enabled |
+| `AIWAF_LOGIN_PATH_PREFIXES` | common login paths | Shorten min form time for login |
+
+### Keyword Learning
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_ENABLE_KEYWORD_LEARNING` | `true` | Enable dynamic keyword learning |
+| `AIWAF_DYNAMIC_TOP_N` | `10` | Dynamic keyword learning threshold |
+| `AIWAF_EXEMPT_KEYWORDS` | `[]` | Skip these keywords |
+| `AIWAF_ALLOWED_PATH_KEYWORDS` | `[]` | Allowlist of path fragments |
+
+### Model / Training
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_MIN_TRAIN_LOGS` | `50` | Minimum logs to run training |
+| `AIWAF_MIN_AI_LOGS` | `10000` | Minimum logs to train AI model |
+| `AIWAF_FORCE_AI_TRAINING` | `false` | Force AI training below minimum logs |
+| `AIWAF_MODEL_STORAGE` | `file` | `file`, `db`, or `cache` |
+| `AIWAF_MODEL_PATH` | `resources/model.json` | Model file path (file backend) |
+| `AIWAF_MODEL_STORAGE_FALLBACK` | `file` | Fallback model backend |
+| `AIWAF_MODEL_CACHE_KEY` | `aiwaf:model` | Cache key when using cache backend |
+| `AIWAF_MODEL_CACHE_TTL` | `0` | Cache TTL in seconds |
+
+### Geo Blocking
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_GEO_BLOCK_ENABLED` | `false` | Enable geo blocking |
+| `AIWAF_GEO_BLOCK_COUNTRIES` | `[]` | Block list (country codes) |
+| `AIWAF_GEO_ALLOW_COUNTRIES` | `[]` | Allow list (country codes) |
+| `AIWAF_GEO_MMDB_PATH` | `geolock/ipinfo_lite.mmdb` | MMDB path |
+| `AIWAF_GEO_CACHE_SECONDS` | `3600` | Geo cache TTL |
+| `AIWAF_GEO_CACHE_PREFIX` | `aiwaf:geo:` | Geo cache key prefix |
+
+### Logging / Storage
+
+| Option | Default | Description |
+|---|---|---|
+| `AIWAF_MIDDLEWARE_LOGGING` | `false` | Enable JSONL logging |
+| `AIWAF_MIDDLEWARE_LOG_PATH` | `logs/aiwaf-requests.jsonl` | JSONL log path |
+| `AIWAF_MIDDLEWARE_LOG_DB` | `false` | Store logs in DB |
+| `AIWAF_MIDDLEWARE_LOG_CSV` | `false` | Store logs in CSV |
+| `AIWAF_MIDDLEWARE_LOG_CSV_PATH` | `logs/aiwaf-requests.csv` | CSV log path |
+| `AIWAF_BLOCKED_IPS_CSV_PATH` | `logs/storage/blocked_ips.csv` | CSV fallback for blocked IPs |
+| `AIWAF_IP_EXEMPTIONS_CSV_PATH` | `logs/storage/ip_exemptions.csv` | CSV fallback for IP exemptions |
+| `AIWAF_PATH_EXEMPTIONS_CSV_PATH` | `logs/storage/path_exemptions.csv` | CSV fallback for path exemptions |
+| `AIWAF_GEO_BLOCKED_COUNTRIES_CSV_PATH` | `logs/storage/geo_blocked_countries.csv` | CSV fallback for geo blocklist |
+| `AIWAF_REQUEST_LOGS_CSV_PATH` | `logs/storage/request_logs.csv` | CSV fallback for request logs |
+| `AIWAF_DYNAMIC_KEYWORDS_CSV_PATH` | `logs/storage/dynamic_keywords.csv` | CSV fallback for dynamic keywords |
+
+### Redis / Cache
 ## Redis and Cache Behavior
 
 - Set `REDIS_URL` (or `AIWAF_REDIS_URL`) to enable Redis connectivity (`lib/redisClient.js`).
@@ -122,7 +212,7 @@ Feature cache custom backend supports:
 Train a model using access logs:
 
 ```bash
-NODE_LOG_PATH=/path/to/access.log npm run train
+AIWAF_ACCESS_LOG=/path/to/access.log npm run train
 ```
 
 Optional rotated/gz support:
@@ -136,7 +226,10 @@ Training pipeline in `train.js`:
 - Reads raw and rotated (including `.gz`) access logs
 - Parses request fields (IP, URI, status, response time, timestamp)
 - Builds feature vectors: `[pathLen, kwHits, statusIdx, responseTime, burst, total404]`
-- Trains IsolationForest
+- Enforces `AIWAF_MIN_TRAIN_LOGS` and `AIWAF_MIN_AI_LOGS`
+- Trains IsolationForest when log volume is sufficient
+- Learns dynamic keywords from suspicious 4xx/5xx traffic
+- Removes exempt keywords and unblocks exempt IPs
 - Writes model artifact to `resources/model.json` with metadata
 - Model storage backends:
   - `AIWAF_MODEL_STORAGE`: `file` (default), `db`, `cache`
@@ -152,14 +245,15 @@ npm test
 
 Current tests cover:
 
-- Static keyword blocking
-- Safe path pass-through
-- Rate-limit behavior
-- Honeypot blocking
-- UUID tamper blocking
-- Dynamic keyword learning/blocking
-- Anomaly blocking
-- Redis failure fallback behavior
+- Header validation (caps, suspicious UA, quality scoring)
+- Method policy enforcement
+- Geo blocking and MMDB lookup
+- Honeypot timing policies
+- UUID tamper detection (with resolver)
+- Anomaly detection and recent-behavior analysis
+- Dynamic keyword learning and trainer behaviors
+- CSV/DB fallback storage
+- CLI and settings compatibility
 
 ## Data and Persistence
 
@@ -183,7 +277,7 @@ Current tests cover:
 
 - Middleware order matters; place AIWAF after body parsers if honeypot checks depend on parsed JSON/form body.
 - If no trained model exists or loading fails, anomaly detector fails open.
-- Dynamic keyword learning is in-memory for process lifetime.
+- Dynamic keyword learning persists to DB/CSV via `dynamicKeywordStore`.
 - Multi-instance deployments should use Redis/custom shared cache for limiter consistency.
 
 ## Development
@@ -206,6 +300,24 @@ npm run aiwaf -- geo block CN "manual block"
 npm run aiwaf -- geo summary
 npm run aiwaf -- diagnose 203.0.113.10
 ```
+
+## Sandbox (OWASP Juice Shop)
+
+The repository includes a runnable sandbox that proxies OWASP Juice Shop behind AIWAF. It also includes an attack suite that generates comparable results for direct vs protected traffic.
+
+Run sandbox:
+
+```bash
+docker compose -f examples/sandbox/docker-compose.yml up --build
+```
+
+Run the attack suite and compare:
+
+```bash
+node examples/sandbox/run-and-compare.js http://localhost:3001 http://localhost:3000
+```
+
+The comparison output includes per‑attack block rates and total blocked requests.
 
 ## License
 
