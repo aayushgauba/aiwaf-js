@@ -15,7 +15,7 @@ describe('geoBlocker MMDB lookup', () => {
       openSync: () => ({
         get: () => ({ country: { iso_code: 'US' } })
       })
-    }), { virtual: true });
+    }));
 
     jest.doMock('../lib/geoStore', () => ({
       initialize: jest.fn(async () => {}),
@@ -32,17 +32,19 @@ describe('geoBlocker MMDB lookup', () => {
   });
 
   it('blocks based on MMDB lookup', async () => {
-    const geoBlocker = require('../lib/geoBlocker');
-
-    geoBlocker.init({
-      AIWAF_GEO_BLOCK_ENABLED: true,
-      AIWAF_GEO_BLOCK_COUNTRIES: ['US'],
-      AIWAF_GEO_MMDB_PATH: mmdbPath
+    let result;
+    jest.isolateModules(() => {
+      const geoBlocker = require('../lib/geoBlocker');
+      geoBlocker.init({
+        AIWAF_GEO_BLOCK_ENABLED: true,
+        AIWAF_GEO_BLOCK_COUNTRIES: ['US'],
+        AIWAF_GEO_MMDB_PATH: mmdbPath
+      });
+      result = geoBlocker.check({
+        headers: { 'x-forwarded-for': '203.0.113.10' }
+      });
     });
-
-    const result = await geoBlocker.check({
-      headers: { 'x-forwarded-for': '203.0.113.10' }
-    });
+    result = await result;
 
     expect(result.blocked).toBe(true);
     expect(result.country).toBe('US');
