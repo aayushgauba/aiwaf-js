@@ -1,6 +1,7 @@
 # aiwaf-js
 
 AIWAF-JS is a Node.js/Express Web Application Firewall that combines deterministic protections with anomaly detection and continuous learning. It ships as middleware, a CLI for ops workflows, and an offline trainer for IsolationForest models.
+Supported frameworks: Express (native), Fastify, Hapi, Koa, and NestJS (Express/Fastify wrappers).
 
 ## What It Does
 
@@ -86,6 +87,144 @@ app.use(aiwaf({
 
 app.get('/', (req, res) => res.send('Protected'));
 app.listen(3000);
+```
+
+## Fastify Usage
+
+```js
+const fastify = require('fastify')({ logger: true });
+const aiwaf = require('aiwaf-js');
+
+fastify.register(aiwaf.fastify, {
+  staticKeywords: ['.php', '.env', '.git'],
+  dynamicTopN: 10,
+  WINDOW_SEC: 10,
+  MAX_REQ: 20,
+  FLOOD_REQ: 40,
+  HONEYPOT_FIELD: 'hp_field'
+});
+
+fastify.get('/', async () => 'Protected');
+fastify.listen({ port: 3000 });
+```
+
+## Hapi Usage
+
+```js
+const Hapi = require('@hapi/hapi');
+const aiwaf = require('aiwaf-js');
+
+const server = Hapi.server({ port: 3000 });
+await server.register({
+  plugin: aiwaf.hapi,
+  options: {
+    staticKeywords: ['.php', '.env', '.git'],
+    dynamicTopN: 10,
+    WINDOW_SEC: 10,
+    MAX_REQ: 20,
+    FLOOD_REQ: 40,
+    HONEYPOT_FIELD: 'hp_field'
+  }
+});
+
+server.route({ method: 'GET', path: '/', handler: () => 'Protected' });
+await server.start();
+```
+
+## Koa Usage
+
+```js
+const Koa = require('koa');
+const bodyParser = require('koa-bodyparser');
+const aiwaf = require('aiwaf-js');
+
+const app = new Koa();
+app.use(bodyParser());
+
+app.use(aiwaf.koa({
+  staticKeywords: ['.php', '.env', '.git'],
+  dynamicTopN: 10,
+  WINDOW_SEC: 10,
+  MAX_REQ: 20,
+  FLOOD_REQ: 40,
+  HONEYPOT_FIELD: 'hp_field'
+}));
+
+app.use(ctx => {
+  ctx.body = 'Protected';
+});
+
+app.listen(3000);
+```
+
+## NestJS (Express) Usage
+
+```ts
+import { Module, MiddlewareConsumer, NestModule } from '@nestjs/common';
+import aiwaf from 'aiwaf-js';
+
+@Module({})
+export class AppModule implements NestModule {
+  configure(consumer: MiddlewareConsumer) {
+    consumer
+      .apply(aiwaf.nest({
+        staticKeywords: ['.php', '.env', '.git'],
+        dynamicTopN: 10,
+        WINDOW_SEC: 10,
+        MAX_REQ: 20,
+        FLOOD_REQ: 40,
+        HONEYPOT_FIELD: 'hp_field'
+      }))
+      .forRoutes('*');
+  }
+}
+```
+
+If you need to guarantee ordering before other middleware/proxies, you can also attach the Express middleware directly in `main.ts`:
+
+```ts
+import { NestFactory } from '@nestjs/core';
+import aiwaf from 'aiwaf-js';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule);
+  app.use(aiwaf({
+    staticKeywords: ['.php', '.env', '.git'],
+    dynamicTopN: 10,
+    WINDOW_SEC: 10,
+    MAX_REQ: 20,
+    FLOOD_REQ: 40,
+    HONEYPOT_FIELD: 'hp_field'
+  }));
+  await app.listen(3000);
+}
+bootstrap();
+```
+
+## NestJS (Fastify) Usage
+
+Use the Fastify plugin when running Nest with `FastifyAdapter`:
+
+```ts
+import { NestFactory } from '@nestjs/core';
+import { FastifyAdapter } from '@nestjs/platform-fastify';
+import aiwaf from 'aiwaf-js';
+import { AppModule } from './app.module';
+
+async function bootstrap() {
+  const app = await NestFactory.create(AppModule, new FastifyAdapter());
+  await app.register(aiwaf.fastify, {
+    staticKeywords: ['.php', '.env', '.git'],
+    dynamicTopN: 10,
+    WINDOW_SEC: 10,
+    MAX_REQ: 20,
+    FLOOD_REQ: 40,
+    HONEYPOT_FIELD: 'hp_field'
+  });
+  await app.listen(3000, '0.0.0.0');
+}
+bootstrap();
 ```
 
 ## Configuration
@@ -318,6 +457,7 @@ node examples/sandbox/run-and-compare.js http://localhost:3001 http://localhost:
 ```
 
 The comparison output includes per‑attack block rates and total blocked requests.
+Fastify proxy is also available on `http://localhost:3002`.
 
 ## License
 

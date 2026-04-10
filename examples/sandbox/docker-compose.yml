@@ -17,6 +17,78 @@ services:
     volumes:
       - aiwaf_logs:/logs
 
+  aiwaf_fastify:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-fastify-proxy/Dockerfile
+    container_name: aiwaf_fastify_proxy
+    ports:
+      - "3002:3002"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3002
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_hapi:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-hapi-proxy/Dockerfile
+    container_name: aiwaf_hapi_proxy
+    ports:
+      - "3003:3003"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3003
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_koa:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-koa-proxy/Dockerfile
+    container_name: aiwaf_koa_proxy
+    ports:
+      - "3004:3004"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3004
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_nest:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-nest-proxy/Dockerfile
+    container_name: aiwaf_nest_proxy
+    ports:
+      - "3005:3005"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3005
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
   juice:
     image: bkimminich/juice-shop
     container_name: juice_shop

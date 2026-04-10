@@ -265,13 +265,52 @@ async function runSuite(baseUrl, targetName, outputFile) {
   return report;
 }
 
+async function runDefaultComparison() {
+  const runId = new Date().toISOString().replace(/[:.]/g, '-');
+  const targets = [
+    { name: 'direct', url: 'http://localhost:3001' },
+    { name: 'protected', url: 'http://localhost:3000' },
+    { name: 'protected_fastify', url: 'http://localhost:3002' },
+    { name: 'protected_hapi', url: 'http://localhost:3003' },
+    { name: 'protected_koa', url: 'http://localhost:3004' },
+    { name: 'protected_nest', url: 'http://localhost:3005' }
+  ];
+
+  const reports = [];
+  for (const target of targets) {
+    const outputFile = buildOutputPath(target.name, runId);
+    const report = await runSuite(target.url, target.name, outputFile);
+    reports.push(report);
+  }
+
+  const comparison = reports.map(report => ({
+    target: report.target,
+    baseUrl: report.baseUrl,
+    totals: report.attacks.reduce((acc, attack) => {
+      acc.requests += attack.requests_sent;
+      acc.blocked += attack.blocked;
+      return acc;
+    }, { requests: 0, blocked: 0 }),
+    attacks: report.attacks
+  }));
+
+  const comparisonFile = path.join(__dirname, `comparison_all_${runId}.json`);
+  fs.writeFileSync(comparisonFile, JSON.stringify({
+    runId,
+    generatedAt: new Date().toISOString(),
+    comparison
+  }, null, 2), 'utf8');
+
+  console.log(`Saved ${comparisonFile}`);
+}
+
 async function runCli() {
   const baseUrl = process.argv[2];
   const targetName = process.argv[3] || 'target';
 
   if (!baseUrl) {
-    console.error('Usage: node attack-suite.js <baseUrl> <targetName>');
-    process.exit(1);
+    await runDefaultComparison();
+    return;
   }
 
   const runId = new Date().toISOString().replace(/[:.]/g, '-');
@@ -289,5 +328,6 @@ if (require.main === module) {
 
 module.exports = {
   runSuite,
-  buildOutputPath
+  buildOutputPath,
+  runDefaultComparison
 };

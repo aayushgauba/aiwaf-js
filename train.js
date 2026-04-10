@@ -126,8 +126,17 @@ async function readDbRequestLogs() {
   }
 }
 
-const dynamicKeywordStore = require('./lib/dynamicKeywordStore');
-const exemptionStore = require('./lib/exemptionStore');
+function getDynamicKeywordStore() {
+  // Lazy require for easier test mocking.
+  // eslint-disable-next-line global-require
+  return require('./lib/dynamicKeywordStore');
+}
+
+function getExemptionStore() {
+  // Lazy require for easier test mocking.
+  // eslint-disable-next-line global-require
+  return require('./lib/exemptionStore');
+}
 
 function normalizeTokens(value) {
   if (!value) return [];
@@ -172,6 +181,7 @@ async function getExemptPaths() {
   const fromEnv = normalizeTokens(process.env.AIWAF_EXEMPT_PATHS);
   const fromDb = [];
   try {
+    const exemptionStore = getExemptionStore();
     await exemptionStore.initialize();
     const rows = await exemptionStore.listPaths(1000);
     rows.forEach(row => fromDb.push(String(row.path_prefix || '').toLowerCase()));
@@ -195,6 +205,7 @@ async function removeExemptKeywords() {
   normalizeTokens(process.env.AIWAF_ALLOWED_PATH_KEYWORDS).forEach(token => exemptTokens.add(token));
 
   for (const token of exemptTokens) {
+    const dynamicKeywordStore = getDynamicKeywordStore();
     await dynamicKeywordStore.remove(token);
   }
 
@@ -205,6 +216,7 @@ async function removeExemptKeywords() {
 
 async function unblockExemptIps() {
   try {
+    const exemptionStore = getExemptionStore();
     await exemptionStore.initialize();
     const rows = await exemptionStore.listIps();
     const ips = rows.map(row => row.ip_address).filter(Boolean);
@@ -562,6 +574,7 @@ function calculateFeatures(parsedRequests) {
 
       const ranked = Array.from(tokens.entries()).sort((a, b) => b[1] - a[1]).slice(0, DYNAMIC_TOP_N);
       for (const [kw, count] of ranked) {
+        const dynamicKeywordStore = getDynamicKeywordStore();
         await dynamicKeywordStore.add(kw, count);
       }
 
