@@ -236,6 +236,36 @@ describe('AIWAF-JS Middleware', () => {
       .expect(200, 'ok');
   });
 
+  it('distinguishes curl-like headers from browser-like headers', async () => {
+    const headerApp = express();
+    headerApp.use(express.json());
+    headerApp.use(aiwaf({
+      AIWAF_HEADER_VALIDATION: true,
+      AIWAF_REQUIRED_HEADERS: ['accept'],
+      AIWAF_HEADER_QUALITY_MIN_SCORE: 3,
+      cache: testCache
+    }));
+    headerApp.get('/headers-human', (req, res) => res.send('ok'));
+
+    await request(headerApp)
+      .get('/headers-human')
+      .set('X-Forwarded-For', `198.51.100.${Math.floor(Math.random() * 254) + 1}`)
+      .set('user-agent', 'curl/7.88.1')
+      .set('accept', '*/*')
+      .expect(403, { error: 'blocked' });
+
+    await request(headerApp)
+      .get('/headers-human')
+      .set('X-Forwarded-For', `198.51.100.${Math.floor(Math.random() * 254) + 1}`)
+      .set('user-agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36')
+      .set('accept', 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8')
+      .set('accept-language', 'en-US,en;q=0.9')
+      .set('accept-encoding', 'gzip, deflate, br')
+      .set('connection', 'keep-alive')
+      .set('upgrade-insecure-requests', '1')
+      .expect(200, 'ok');
+  });
+
   it('supports geo blocking using country code header', async () => {
     const geoApp = express();
     geoApp.use(express.json());

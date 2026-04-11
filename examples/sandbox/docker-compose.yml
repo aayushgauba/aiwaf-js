@@ -12,6 +12,7 @@ services:
       AIWAF_GEO_BLOCK_ENABLED: "false"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
     depends_on:
       - juice
     volumes:
@@ -30,6 +31,7 @@ services:
       AIWAF_GEO_BLOCK_ENABLED: "false"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
     depends_on:
       - juice
     volumes:
@@ -48,6 +50,7 @@ services:
       AIWAF_GEO_BLOCK_ENABLED: "false"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
     depends_on:
       - juice
     volumes:
@@ -66,6 +69,7 @@ services:
       AIWAF_GEO_BLOCK_ENABLED: "false"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
     depends_on:
       - juice
     volumes:
@@ -84,6 +88,45 @@ services:
       AIWAF_GEO_BLOCK_ENABLED: "false"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_next:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-next-proxy/Dockerfile
+    container_name: aiwaf_next_proxy
+    ports:
+      - "3006:3006"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3006
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_adonis:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-adonis-proxy/Dockerfile
+    container_name: aiwaf_adonis_proxy
+    ports:
+      - "3007:3007"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3007
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
     depends_on:
       - juice
     volumes:

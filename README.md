@@ -1,7 +1,7 @@
 # aiwaf-js
 
 AIWAF-JS is a Node.js/Express Web Application Firewall that combines deterministic protections with anomaly detection and continuous learning. It ships as middleware, a CLI for ops workflows, and an offline trainer for IsolationForest models.
-Supported frameworks: Express (native), Fastify, Hapi, Koa, and NestJS (Express/Fastify wrappers).
+Supported frameworks: Express (native), Fastify, Hapi, Koa, NestJS (Express/Fastify wrappers), Next.js (API route wrapper), and AdonisJS.
 
 ## What It Does
 
@@ -225,6 +225,46 @@ async function bootstrap() {
   await app.listen(3000, '0.0.0.0');
 }
 bootstrap();
+```
+
+## Next.js (API Routes) Usage
+
+Use the `aiwaf.next` helper to wrap a Next.js API route handler.
+
+```ts
+import aiwaf from 'aiwaf-js';
+
+function handler(req, res) {
+  res.status(200).json({ ok: true });
+}
+
+export default aiwaf.next(handler, {
+  staticKeywords: ['.php', '.env', '.git'],
+  dynamicTopN: 10,
+  WINDOW_SEC: 10,
+  MAX_REQ: 20,
+  FLOOD_REQ: 40,
+  HONEYPOT_FIELD: 'hp_field'
+});
+```
+
+## AdonisJS Usage
+
+Register the middleware in your Adonis middleware stack:
+
+```ts
+import aiwaf from 'aiwaf-js';
+
+export const middleware = [
+  () => aiwaf.adonis({
+    staticKeywords: ['.php', '.env', '.git'],
+    dynamicTopN: 10,
+    WINDOW_SEC: 10,
+    MAX_REQ: 20,
+    FLOOD_REQ: 40,
+    HONEYPOT_FIELD: 'hp_field'
+  })
+];
 ```
 
 ## Configuration
