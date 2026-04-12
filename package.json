@@ -1,8 +1,19 @@
 {
     "name": "aiwaf-js",
-    "version": "0.0.8",
+    "version": "0.0.9",
     "description": "Adaptive Web Application Firewall middleware for Node.js (Express, Fastify, Hapi, Next.js)",
     "main": "index.js",
+    "files": [
+        "index.js",
+        "bin/",
+        "lib/",
+        "resources/",
+        "utils/",
+        "train.js",
+        "README.md",
+        "INSTALLATION.md",
+        "LICENSE"
+    ],
     "bin": {
         "aiwaf": "bin/aiwaf.js"
     },
@@ -64,6 +75,10 @@
         "middleware",
         "ml"
     ],
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/aiwaf/aiwaf-js"
+    },
     "author": "Aayush Gauba",
     "license": "MIT"
 }
