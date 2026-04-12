@@ -19,6 +19,7 @@ Then open:
 - AIWAF-protected (NestJS): `http://localhost:3005`
 - AIWAF-protected (Next.js): `http://localhost:3006`
 - AIWAF-protected (AdonisJS): `http://localhost:3007`
+- AIWAF-protected (Sails.js): `http://localhost:3008`
 - Direct Juice Shop: `http://localhost:3001`
 
 ## Test
@@ -82,10 +83,16 @@ Run against AIWAF-protected Juice Shop (AdonisJS):
 node attack-suite.js http://localhost:3007 protected_adonis
 ```
 
+Run against AIWAF-protected Juice Shop (Sails.js):
+
+```bash
+node attack-suite.js http://localhost:3008 protected_sails
+```
+
 Compare results:
 
 ```bash
-node compare-results.js results_direct_*.json results_protected_*.json results_protected_fastify_*.json results_protected_hapi_*.json results_protected_koa_*.json results_protected_nest_*.json results_protected_next_*.json results_protected_adonis_*.json
+node compare-results.js results_direct_*.json results_protected_*.json results_protected_fastify_*.json results_protected_hapi_*.json results_protected_koa_*.json results_protected_nest_*.json results_protected_next_*.json results_protected_adonis_*.json results_protected_sails_*.json
 ```
 
 Or run the full suite + comparison in one command:

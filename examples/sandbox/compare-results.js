@@ -15,6 +15,7 @@ const koaFileArg = fileArgs[4];
 const nestFileArg = fileArgs[5];
 const nextFileArg = fileArgs[6];
 const adonisFileArg = fileArgs[7];
+const sailsFileArg = fileArgs[8];
 
 function listResultFiles(dir) {
   return fs.readdirSync(dir)
@@ -33,7 +34,8 @@ function pickLatest(dir, prefix) {
           && !base.startsWith('results_protected_koa_')
           && !base.startsWith('results_protected_nest_')
           && !base.startsWith('results_protected_next_')
-          && !base.startsWith('results_protected_adonis_');
+          && !base.startsWith('results_protected_adonis_')
+          && !base.startsWith('results_protected_sails_');
       }
       return base.startsWith(`results_${prefix}_`);
     });
@@ -53,10 +55,11 @@ const koaFile = koaFileArg || pickLatest(baseDir, 'protected_koa');
 const nestFile = nestFileArg || pickLatest(baseDir, 'protected_nest');
 const nextFile = nextFileArg || pickLatest(baseDir, 'protected_next');
 const adonisFile = adonisFileArg || pickLatest(baseDir, 'protected_adonis');
+const sailsFile = sailsFileArg || pickLatest(baseDir, 'protected_sails');
 
-if (!directFile || !protectedFile || !fastifyFile || !hapiFile || !koaFile || !nestFile || !nextFile || !adonisFile) {
-  console.error('Usage: node compare-results.js <direct.json> <protected.json> <protected_fastify.json> <protected_hapi.json> <protected_koa.json> <protected_nest.json> <protected_next.json> <protected_adonis.json>');
-  console.error('Or place results_direct_*.json, results_protected_*.json, results_protected_fastify_*.json, results_protected_hapi_*.json, results_protected_koa_*.json, results_protected_nest_*.json, results_protected_next_*.json, results_protected_adonis_*.json in examples/sandbox.');
+if (!directFile || !protectedFile || !fastifyFile || !hapiFile || !koaFile || !nestFile || !nextFile || !adonisFile || !sailsFile) {
+  console.error('Usage: node compare-results.js <direct.json> <protected.json> <protected_fastify.json> <protected_hapi.json> <protected_koa.json> <protected_nest.json> <protected_next.json> <protected_adonis.json> <protected_sails.json>');
+  console.error('Or place results_direct_*.json, results_protected_*.json, results_protected_fastify_*.json, results_protected_hapi_*.json, results_protected_koa_*.json, results_protected_nest_*.json, results_protected_next_*.json, results_protected_adonis_*.json, results_protected_sails_*.json in examples/sandbox.');
   process.exit(1);
 }
 
@@ -72,6 +75,7 @@ const koaRes = loadJson(koaFile);
 const nestRes = loadJson(nestFile);
 const nextRes = loadJson(nextFile);
 const adonisRes = loadJson(adonisFile);
+const sailsRes = loadJson(sailsFile);
 
 if (protectedRes.target !== 'protected') {
   const candidates = listResultFiles(baseDir)
@@ -138,6 +142,11 @@ adonisRes.attacks.forEach(a => {
   entry.adonis = a;
   byAttack.set(a.attack_type, entry);
 });
+sailsRes.attacks.forEach(a => {
+  const entry = byAttack.get(a.attack_type) || {};
+  entry.sails = a;
+  byAttack.set(a.attack_type, entry);
+});
 
 const summary = [];
 let totalDirectBlocked = 0;
@@ -156,6 +165,8 @@ let totalNextBlocked = 0;
 let totalNextRequests = 0;
 let totalAdonisBlocked = 0;
 let totalAdonisRequests = 0;
+let totalSailsBlocked = 0;
+let totalSailsRequests = 0;
 for (const [attack, pair] of byAttack.entries()) {
   const directBlocked = pair.direct?.blocked ?? 0;
   const protectedBlocked = pair.protected?.blocked ?? 0;
@@ -165,6 +176,7 @@ for (const [attack, pair] of byAttack.entries()) {
   const nestBlocked = pair.nest?.blocked ?? 0;
   const nextBlocked = pair.next?.blocked ?? 0;
   const adonisBlocked = pair.adonis?.blocked ?? 0;
+  const sailsBlocked = pair.sails?.blocked ?? 0;
   const directRequests = pair.direct?.requests_sent ?? 0;
   const protectedRequests = pair.protected?.requests_sent ?? 0;
   const fastifyRequests = pair.fastify?.requests_sent ?? 0;
@@ -173,6 +185,7 @@ for (const [attack, pair] of byAttack.entries()) {
   const nestRequests = pair.nest?.requests_sent ?? 0;
   const nextRequests = pair.next?.requests_sent ?? 0;
   const adonisRequests = pair.adonis?.requests_sent ?? 0;
+  const sailsRequests = pair.sails?.requests_sent ?? 0;
 
   totalDirectBlocked += directBlocked;
   totalProtectedBlocked += protectedBlocked;
@@ -190,6 +203,8 @@ for (const [attack, pair] of byAttack.entries()) {
   totalNextRequests += nextRequests;
   totalAdonisBlocked += adonisBlocked;
   totalAdonisRequests += adonisRequests;
+  totalSailsBlocked += sailsBlocked;
+  totalSailsRequests += sailsRequests;
 
   summary.push({
     attack_type: attack,
@@ -201,6 +216,7 @@ for (const [attack, pair] of byAttack.entries()) {
     protected_nest_blocked: nestBlocked,
     protected_next_blocked: nextBlocked,
     protected_adonis_blocked: adonisBlocked,
+    protected_sails_blocked: sailsBlocked,
     direct_requests: directRequests,
     protected_requests: protectedRequests,
     protected_fastify_requests: fastifyRequests,
@@ -209,6 +225,7 @@ for (const [attack, pair] of byAttack.entries()) {
     protected_nest_requests: nestRequests,
     protected_next_requests: nextRequests,
     protected_adonis_requests: adonisRequests,
+    protected_sails_requests: sailsRequests,
     direct_avg_ms: pair.direct?.avg_response_time_ms ?? 0,
     protected_avg_ms: pair.protected?.avg_response_time_ms ?? 0,
     protected_fastify_avg_ms: pair.fastify?.avg_response_time_ms ?? 0,
@@ -216,7 +233,8 @@ for (const [attack, pair] of byAttack.entries()) {
     protected_koa_avg_ms: pair.koa?.avg_response_time_ms ?? 0,
     protected_nest_avg_ms: pair.nest?.avg_response_time_ms ?? 0,
     protected_next_avg_ms: pair.next?.avg_response_time_ms ?? 0,
-    protected_adonis_avg_ms: pair.adonis?.avg_response_time_ms ?? 0
+    protected_adonis_avg_ms: pair.adonis?.avg_response_time_ms ?? 0,
+    protected_sails_avg_ms: pair.sails?.avg_response_time_ms ?? 0
   });
 }
 
@@ -229,6 +247,7 @@ const output = {
   protected_nest: nestRes.target,
   protected_next: nextRes.target,
   protected_adonis: adonisRes.target,
+  protected_sails: sailsRes.target,
   direct_file: path.relative(baseDir, directFile),
   protected_file: path.relative(baseDir, protectedFile),
   protected_fastify_file: path.relative(baseDir, fastifyFile),
@@ -237,6 +256,7 @@ const output = {
   protected_nest_file: path.relative(baseDir, nestFile),
   protected_next_file: path.relative(baseDir, nextFile),
   protected_adonis_file: path.relative(baseDir, adonisFile),
+  protected_sails_file: path.relative(baseDir, sailsFile),
   totals: {
     direct_blocked: totalDirectBlocked,
     protected_blocked: totalProtectedBlocked,
@@ -246,6 +266,7 @@ const output = {
     protected_nest_blocked: totalNestBlocked,
     protected_next_blocked: totalNextBlocked,
     protected_adonis_blocked: totalAdonisBlocked,
+    protected_sails_blocked: totalSailsBlocked,
     direct_requests: totalDirectRequests,
     protected_requests: totalProtectedRequests,
     protected_fastify_requests: totalFastifyRequests,
@@ -253,7 +274,8 @@ const output = {
     protected_koa_requests: totalKoaRequests,
     protected_nest_requests: totalNestRequests,
     protected_next_requests: totalNextRequests,
-    protected_adonis_requests: totalAdonisRequests
+    protected_adonis_requests: totalAdonisRequests,
+    protected_sails_requests: totalSailsRequests
   },
   comparison: summary
 };
@@ -275,6 +297,7 @@ function printTable(data) {
     'nest_blocked',
     'next_blocked',
     'adonis_blocked',
+    'sails_blocked',
     'direct_avg_ms',
     'protected_avg_ms',
     'fastify_avg_ms',
@@ -282,7 +305,8 @@ function printTable(data) {
     'koa_avg_ms',
     'nest_avg_ms',
     'next_avg_ms',
-    'adonis_avg_ms'
+    'adonis_avg_ms',
+    'sails_avg_ms'
   ];
   const rows = data.comparison.map(row => ([
     row.attack_type,
@@ -294,6 +318,7 @@ function printTable(data) {
     row.protected_nest_blocked,
     row.protected_next_blocked,
     row.protected_adonis_blocked,
+    row.protected_sails_blocked,
     row.direct_avg_ms.toFixed ? row.direct_avg_ms.toFixed(2) : row.direct_avg_ms,
     row.protected_avg_ms.toFixed ? row.protected_avg_ms.toFixed(2) : row.protected_avg_ms,
     row.protected_fastify_avg_ms.toFixed ? row.protected_fastify_avg_ms.toFixed(2) : row.protected_fastify_avg_ms,
@@ -301,7 +326,8 @@ function printTable(data) {
     row.protected_koa_avg_ms.toFixed ? row.protected_koa_avg_ms.toFixed(2) : row.protected_koa_avg_ms,
     row.protected_nest_avg_ms.toFixed ? row.protected_nest_avg_ms.toFixed(2) : row.protected_nest_avg_ms,
     row.protected_next_avg_ms.toFixed ? row.protected_next_avg_ms.toFixed(2) : row.protected_next_avg_ms,
-    row.protected_adonis_avg_ms.toFixed ? row.protected_adonis_avg_ms.toFixed(2) : row.protected_adonis_avg_ms
+    row.protected_adonis_avg_ms.toFixed ? row.protected_adonis_avg_ms.toFixed(2) : row.protected_adonis_avg_ms,
+    row.protected_sails_avg_ms.toFixed ? row.protected_sails_avg_ms.toFixed(2) : row.protected_sails_avg_ms
   ]));
 
   const widths = headers.map((header, idx) => {

@@ -14,3 +14,4 @@ module.exports.koa = createKoaMiddleware;
 module.exports.nest = createNestMiddleware;
 module.exports.next = createNextHandler;
 module.exports.adonis = createAdonisMiddleware;
+module.exports.sails = createExpressMiddleware;

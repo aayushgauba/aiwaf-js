@@ -10,6 +10,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3000
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -29,6 +33,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3002
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -48,6 +56,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3003
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -67,6 +79,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3004
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -86,6 +102,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3005
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -105,6 +125,10 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3006
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"
@@ -124,6 +148,33 @@ services:
       TARGET_BASE_URL: http://juice:3000
       PORT: 3007
       AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
+      AIWAF_MIDDLEWARE_LOGGING: "true"
+      AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
+      AIWAF_DEBUG_HEADERS: "true"
+    depends_on:
+      - juice
+    volumes:
+      - aiwaf_logs:/logs
+
+  aiwaf_sails:
+    build:
+      context: ../..
+      dockerfile: examples/sandbox/aiwaf-sails-proxy/Dockerfile
+    container_name: aiwaf_sails_proxy
+    ports:
+      - "3008:3008"
+    environment:
+      TARGET_BASE_URL: http://juice:3000
+      PORT: 3008
+      AIWAF_GEO_BLOCK_ENABLED: "false"
+      AIWAF_CLEAR_STATE_ON_START: "true"
+      AIWAF_MIN_AI_LOGS: "10000"
+      AIWAF_WASM_HEADER_VALIDATION: "false"
+      AIWAF_DEBUG_WASM_HEADERS: "true"
       AIWAF_MIDDLEWARE_LOGGING: "true"
       AIWAF_MIDDLEWARE_LOG_PATH: /logs/aiwaf-requests.jsonl
       AIWAF_DEBUG_HEADERS: "true"

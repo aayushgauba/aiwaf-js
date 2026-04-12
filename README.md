@@ -1,7 +1,7 @@
 # aiwaf-js
 
 AIWAF-JS is a Node.js/Express Web Application Firewall that combines deterministic protections with anomaly detection and continuous learning. It ships as middleware, a CLI for ops workflows, and an offline trainer for IsolationForest models.
-Supported frameworks: Express (native), Fastify, Hapi, Koa, NestJS (Express/Fastify wrappers), Next.js (API route wrapper), and AdonisJS.
+Supported frameworks: Express (native), Fastify, Hapi, Koa, NestJS (Express/Fastify wrappers), Next.js (API route wrapper), AdonisJS, and Sails.js.
 
 ## What It Does
 
@@ -276,6 +276,27 @@ export const middleware = [
 ];
 ```
 
+## Sails.js Usage
+
+Use the Express-compatible middleware in your Sails `config/http.js`:
+
+```js
+const aiwaf = require('aiwaf-js');
+
+module.exports.http = {
+  middleware: {
+    aiwaf: aiwaf.sails({
+      staticKeywords: ['.php', '.env', '.git'],
+      dynamicTopN: 10,
+      WINDOW_SEC: 10,
+      MAX_REQ: 20,
+      FLOOD_REQ: 40,
+      HONEYPOT_FIELD: 'hp_field'
+    })
+  }
+};
+```
+
 ## Configuration
 
 ### Core Controls
@@ -335,6 +356,7 @@ export const middleware = [
 |---|---|---|
 | `AIWAF_MIN_TRAIN_LOGS` | `50` | Minimum logs to run training |
 | `AIWAF_MIN_AI_LOGS` | `10000` | Minimum logs to train AI model |
+| `AIWAF_CLEAR_STATE_ON_START` | `false` | Clear blacklist, request logs, and dynamic keywords on startup |
 | `AIWAF_FORCE_AI_TRAINING` | `false` | Force AI training below minimum logs |
 | `AIWAF_MODEL_STORAGE` | `file` | `file`, `db`, or `cache` |
 | `AIWAF_MODEL_PATH` | `resources/model.json` | Model file path (file backend) |

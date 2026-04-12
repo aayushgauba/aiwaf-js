@@ -440,7 +440,8 @@ async function runDefaultComparison() {
     { name: 'protected_koa', url: 'http://localhost:3004' },
     { name: 'protected_nest', url: 'http://localhost:3005' },
     { name: 'protected_next', url: 'http://localhost:3006' },
-    { name: 'protected_adonis', url: 'http://localhost:3007' }
+    { name: 'protected_adonis', url: 'http://localhost:3007' },
+    { name: 'protected_sails', url: 'http://localhost:3008' }
   ];
 
   const allReports = { normal: [], attacks: [] };
