@@ -63,6 +63,15 @@ Supported frameworks: Express (native), Fastify, Hapi, Koa, NestJS (Express/Fast
 npm install aiwaf-js
 ```
 
+### Optional WASM Acceleration
+
+AIWAF can use the `aiwaf-wasm` optional dependency for faster IsolationForest scoring and deterministic feature validation.
+If the WASM module fails to load, it automatically falls back to the JS implementation.
+
+```bash
+npm install aiwaf-wasm
+```
+
 ## Quick Start
 
 ```js
@@ -284,6 +293,8 @@ export const middleware = [
 | `cache` | fallback memory cache | Custom cache backend used by limiter/features |
 | `nTrees` | `100` | IsolationForest trees when model is initialized in-process |
 | `sampleSize` | `256` | IsolationForest sample size |
+| `AIWAF_WASM_VALIDATION` | `true` | Enable WASM validation when available (headers, URL, content, recent) |
+| `AIWAF_WASM_VALIDATE_RECENT` | `false` | Run WASM recent-behavior validation on recent request logs |
 
 ### Header Validation
 
